@@ -1,29 +1,29 @@
-import bcrypt from 'bcryptjs'
-import sendEmail from '../../utils/emailService.js'
-import jsonResponse from '../../utils/jsonResponse.js'
-import jwtSign from '../../utils/jwtSign.js'
-import prisma from '../../utils/prismaClient.js'
-import validateInput from '../../utils/validateInput.js'
-import uploadToCLoudinary from '../../utils/uploadToCloudinary.js'
+import bcrypt from "bcryptjs";
+import sendEmail from "../../utils/emailService.js";
+import jsonResponse from "../../utils/jsonResponse.js";
+import jwtSign from "../../utils/jwtSign.js";
+import prisma from "../../utils/prismaClient.js";
+import validateInput from "../../utils/validateInput.js";
+import uploadToCLoudinary from "../../utils/uploadToCloudinary.js";
 
-const module_name = 'auth'
+const module_name = "auth";
 
 //register
 export const register = async (req, res) => {
   try {
-    return await prisma.$transaction(async tx => {
+    return await prisma.$transaction(async (tx) => {
       //Check user if exists
       const user = await tx.user.findFirst({
         where: {
           OR: [{ email: req.body.email }, { phone: req.body.phone }],
-          isDeleted: false
-        }
-      })
+          isDeleted: false,
+        },
+      });
 
       if (user) {
         return res
           .status(409)
-          .json(jsonResponse(false, 'User already exists', null))
+          .json(jsonResponse(false, "User already exists", null));
       }
 
       //Create a new user and Hash the password
@@ -46,27 +46,27 @@ export const register = async (req, res) => {
         otpCount,
         initialPaymentAmount,
         initialPaymentDue,
-        installmentTime
-      } = req.body
+        installmentTime,
+      } = req.body;
 
-      console.log(req.body)
+      console.log(req.body);
 
       //validate input
       const inputValidation = validateInput(
         [name, email, phone, address, billingAddress, country, city],
         [
-          'Name',
-          'Email',
-          'Phone',
-          'Shipping Address',
-          'Billing Address',
-          'Country',
-          'City'
+          "Name",
+          "Email",
+          "Phone",
+          "Shipping Address",
+          "Billing Address",
+          "Country",
+          "City",
         ]
-      )
+      );
 
       if (inputValidation) {
-        return res.status(400).json(jsonResponse(false, inputValidation, null))
+        return res.status(400).json(jsonResponse(false, inputValidation, null));
       }
 
       //create user
@@ -82,77 +82,82 @@ export const register = async (req, res) => {
           country,
           city,
           postalCode,
-          image: 'https://cdn-icons-png.flaticon.com/512/9368/9368192.png',
+          image: "https://cdn-icons-png.flaticon.com/512/9368/9368192.png",
           // password: hashedPassword,
           otp,
           otpCount,
           initialPaymentAmount,
           initialPaymentDue,
           installmentTime,
-          createdBy: req?.user?.id
-        }
-      })
+          createdBy: req?.user?.id,
+        },
+      });
 
-      console.log({ createUser })
+      console.log({ createUser });
 
       if (createUser) {
         return res
           .status(200)
-          .json(jsonResponse(true, 'User has been created', createUser))
+          .json(jsonResponse(true, "User has been created", createUser));
       }
-    })
+    });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json(jsonResponse(false, error, null))
+    console.log(error);
+    return res.status(500).json(jsonResponse(false, error, null));
   }
-}
+};
 
 //login with password
 export const login = async (req, res) => {
   try {
-    return await prisma.$transaction(async tx => {
+    return await prisma.$transaction(async (tx) => {
       //login with phone or email
       const user = await tx.user.findFirst({
         where: {
           OR: [{ email: req.body.email }, { phone: req.body.phone }],
-          isDeleted: false
-        }
-      })
+          isDeleted: false,
+        },
+      });
 
       if (!user)
         return res
           .status(404)
-          .json(jsonResponse(false, 'Wrong credentials', null))
+          .json(jsonResponse(false, "Wrong credentials", null));
 
       if (user.isActive === false) {
         return res
           .status(401)
-          .json(jsonResponse(false, 'You are not authenticated!', null))
+          .json(jsonResponse(false, "You are not authenticated!", null));
       }
 
       //match password
-      const checkPassword = bcrypt.compareSync(req.body.password, user.password)
+      const checkPassword = bcrypt.compareSync(
+        req.body.password,
+        user.password
+      );
 
       if (!checkPassword)
-        return res.status(404).json(jsonResponse(false, 'Wrong password', null))
+        return res
+          .status(404)
+          .json(jsonResponse(false, "Wrong password", null));
 
       //get modules for logged in user
       const roleModuleList = await tx.roleModule.findMany({
         where: { roleId: user.roleId ?? undefined, isDeleted: false },
-        include: { module: true }
-      })
+        include: { module: true },
+      });
 
-      const roleModuleList_length = roleModuleList.length
+      const roleModuleList_length = roleModuleList.length;
 
-      const module_names = []
+      const module_names = [];
 
       for (let i = 0; i < roleModuleList_length; i++) {
-        module_names.push(roleModuleList[i].module.name)
+        module_names.push(roleModuleList[i].module.name);
       }
 
       const roleName = await tx.role.findFirst({
-        where: { id: user.roleId, isDeleted: false }
-      })
+        where: { id: user.roleId, isDeleted: false },
+      });
 
       const token = jwtSign({
         id: user.id,
@@ -162,81 +167,83 @@ export const login = async (req, res) => {
         roleId: user.roleId,
         roleName: roleName.name,
         isActive: user.isActive,
-        moduleNames: module_names
-      })
+        moduleNames: module_names,
+      });
 
-      const { password, otp, otpCount, ...others } = user
+      const { password, otp, otpCount, ...others } = user;
 
       res
-        .cookie('accessToken', token, {
-          httpOnly: true
+        .cookie("accessToken", token, {
+          httpOnly: true,
         })
         .status(200)
         .json(
-          jsonResponse(true, 'Logged In', { ...others, accessToken: token })
-        )
-    })
+          jsonResponse(true, "Logged In", { ...others, accessToken: token })
+        );
+    });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json(jsonResponse(false, error, null))
+    console.log(error);
+    return res.status(500).json(jsonResponse(false, error, null));
   }
-}
+};
 
 //send login otp to mail
 export const sendLoginOtp = async (req, res) => {
   try {
-    return await prisma.$transaction(async tx => {
+    return await prisma.$transaction(async (tx) => {
       //login with phone or email
       const user = await tx.user.findFirst({
         where: {
           OR: [{ email: req.body.email }, { phone: req.body.phone }],
           isDeleted: false,
-          isActive: true
-        }
-      })
+          isActive: true,
+        },
+      });
 
       if (!user)
         return res
           .status(404)
-          .json(jsonResponse(false, 'You are not registered', null))
+          .json(jsonResponse(false, "You are not registered", null));
 
       if (user.isActive === false) {
         return res
           .status(401)
-          .json(jsonResponse(false, 'You are not authenticated!', null))
+          .json(jsonResponse(false, "You are not authenticated!", null));
       }
 
-      if (req.body.type === 'admin' && user?.roleId === null) {
+      if (req.body.type === "admin" && user?.roleId === null) {
         return res
           .status(401)
-          .json(jsonResponse(false, 'You are not permitted!', null))
+          .json(jsonResponse(false, "You are not permitted!", null));
       }
 
       //update user otp
-      const sixDigitOtp = Math.floor(100000 + Math.random() * 900000)
-      let updateOtp
+      const sixDigitOtp = Math.floor(100000 + Math.random() * 900000);
+      let updateOtp;
 
       if (!user?.otp) {
         updateOtp = await prisma.user.update({
           where: { id: user.id },
           data: {
             otp: sixDigitOtp,
-            otpCount: user.otpCount + 1
-          }
-        })
+            otpCount: user.otpCount + 1,
+          },
+        });
 
         if (!updateOtp)
           return res
             .status(404)
-            .json(jsonResponse(false, 'Something went wrong. Try again.', null))
+            .json(
+              jsonResponse(false, "Something went wrong. Try again.", null)
+            );
       }
 
       // console.log(user.email);
 
-      if (!user.email || user.email.trim() === '') {
+      if (!user.email || user.email.trim() === "") {
         res
           .status(400)
-          .json(jsonResponse(false, 'Email is not registered', null))
+          .json(jsonResponse(false, "Email is not registered", null));
       }
 
       // await sendEmail(
@@ -248,15 +255,17 @@ export const sendLoginOtp = async (req, res) => {
       // if (!updateOtp?.otp) {
       const emailGenerate = await sendEmail(
         updateOtp?.email ?? user.email,
-        'Voltech OTP',
+        "Voltech OTP",
         `<p>Your otp is ${updateOtp?.otp ?? user?.otp}</p>`
-      )
+      );
       // }
 
       // console.log({ emailGenerate });
 
       // if (emailGenerate) {
-      res.status(200).json(jsonResponse(true, 'Otp is sent to your mail', null))
+      res
+        .status(200)
+        .json(jsonResponse(true, "Otp is sent to your mail", null));
       // }
 
       // if (user.email && user.email.trim() !== "") {
@@ -285,75 +294,75 @@ export const sendLoginOtp = async (req, res) => {
       //       console.log(error);
       //     });
       // }
-    })
+    });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json(jsonResponse(false, error, null))
+    console.log(error);
+    return res.status(500).json(jsonResponse(false, error, null));
   }
-}
+};
 
 //login with otp
 export const loginWithOtp = async (req, res) => {
   try {
-    return await prisma.$transaction(async tx => {
+    return await prisma.$transaction(async (tx) => {
       //login with otp
       const user = await tx.user.findFirst({
         where: {
           OR: [{ email: req.body.email }, { phone: req.body.phone }],
           isDeleted: false,
-          isActive: true
-        }
-      })
+          isActive: true,
+        },
+      });
 
       if (!user)
         return res
           .status(404)
-          .json(jsonResponse(false, 'You are not registered', null))
+          .json(jsonResponse(false, "You are not registered", null));
 
       if (user.isActive === false) {
         return res
           .status(401)
-          .json(jsonResponse(false, 'You are not authenticated!', null))
+          .json(jsonResponse(false, "You are not authenticated!", null));
       }
 
       //match user otp and login
-      if (user.otp !== null && user.otp !== '') {
+      if (user.otp !== null && user.otp !== "") {
         if (user.otp === req.body.otp) {
           const updateOtp = await prisma.user.update({
             where: { id: user.id },
             data: {
-              otp: null
-            }
-          })
+              otp: null,
+            },
+          });
 
           if (!updateOtp)
             return res
               .status(500)
               .json(
-                jsonResponse(false, 'Something went wrong. Try again.', null)
-              )
+                jsonResponse(false, "Something went wrong. Try again.", null)
+              );
 
           //get modules for logged in user
-          let roleModuleList = []
+          let roleModuleList = [];
           roleModuleList = user?.roleId
             ? await tx.roleModule.findMany({
                 where: { roleId: user.roleId, isDeleted: false },
-                include: { module: true }
+                include: { module: true },
               })
-            : []
+            : [];
 
-          const roleModuleList_length = roleModuleList.length
+          const roleModuleList_length = roleModuleList.length;
 
           const roleName = user?.roleId
             ? await tx.role.findFirst({
-                where: { id: user.roleId, isDeleted: false }
+                where: { id: user.roleId, isDeleted: false },
               })
-            : { name: 'customer' }
+            : { name: "customer" };
 
-          const module_names = []
+          const module_names = [];
 
           for (let i = 0; i < roleModuleList_length; i++) {
-            module_names.push(roleModuleList[i]?.module?.name)
+            module_names.push(roleModuleList[i]?.module?.name);
           }
 
           const token = jwtSign({
@@ -364,44 +373,44 @@ export const loginWithOtp = async (req, res) => {
             roleId: user.roleId,
             roleName: roleName.name,
             isActive: user.isActive,
-            moduleNames: module_names
-          })
+            moduleNames: module_names,
+          });
 
-          const { password, otp, otpCount, ...others } = user
+          const { password, otp, otpCount, ...others } = user;
 
           res
-            .cookie('accessToken', token, {
-              httpOnly: true
+            .cookie("accessToken", token, {
+              httpOnly: true,
             })
             .status(200)
             .json(
-              jsonResponse(true, 'Logged In', { ...others, accessToken: token })
-            )
+              jsonResponse(true, "Logged In", { ...others, accessToken: token })
+            );
         } else {
-          return res.status(400).json(jsonResponse(false, 'Wrong OTP', null))
+          return res.status(400).json(jsonResponse(false, "Wrong OTP", null));
         }
       } else {
         return res
           .status(400)
-          .json(jsonResponse(false, "You didn't receive any OTP yet", null))
+          .json(jsonResponse(false, "You didn't receive any OTP yet", null));
       }
-    })
+    });
   } catch (error) {
-    console.log(error)
-    return res.status(500).json(jsonResponse(false, error, null))
+    console.log(error);
+    return res.status(500).json(jsonResponse(false, error, null));
   }
-}
+};
 
 //logout
 export const logout = (req, res) => {
   res
-    .clearCookie('accessToken', {
+    .clearCookie("accessToken", {
       secure: true,
-      sameSite: 'none'
+      sameSite: "none",
     })
     .status(200)
-    .json(jsonResponse(true, 'Logged out', null))
-}
+    .json(jsonResponse(true, "Logged out", null));
+};
 export const createBrokerUser = async (req, res) => {
   try {
     const {
@@ -491,9 +500,9 @@ export const createBrokerUser = async (req, res) => {
       STKOPT_limitPercentage,
       STKOPT_intraday,
       STKOPT_holding,
-      STKOPT_sellingOvernight ,
-      margin_used,// Added Allow field for STKOPTBUY
-    } = req.body
+      STKOPT_sellingOvernight,
+      margin_used, // Added Allow field for STKOPTBUY
+    } = req.body;
 
     const newUser = await prisma.brokerusers.create({
       data: {
@@ -585,29 +594,27 @@ export const createBrokerUser = async (req, res) => {
         STKOPT_holding,
         STKOPT_sellingOvernight,
         margin_used,
-      }
-    })
+      },
+    });
 
     res.status(201).json({
       success: true,
-      message: 'User created successfully',
-      user: newUser
-    })
+      message: "User created successfully",
+      user: newUser,
+    });
   } catch (error) {
-    console.error(error)
+    console.error(error);
     res
       .status(500)
-      .json({ success: false, message: 'Internal server error', error })
+      .json({ success: false, message: "Internal server error", error });
   }
-}
+};
 
 export const getBrokerUserById = async (req, res) => {
   const { userId } = req.params;
-  const id = userId
+  const id = userId;
 
   console.log(" Received userId:", userId, "Parsed ID:", id);
-
- 
 
   try {
     const user = await prisma.brokerusers.findUnique({
@@ -634,8 +641,6 @@ export const getBrokerUserById = async (req, res) => {
   }
 };
 
-
-
 export const placeOrder = async (req, res) => {
   try {
     const {
@@ -655,8 +660,8 @@ export const placeOrder = async (req, res) => {
       margin,
       carry,
       marginLimit,
-      userId
-    } = req.body
+      userId,
+    } = req.body;
 
     const newOrder = await prisma.TradeOrder.create({
       data: {
@@ -676,67 +681,67 @@ export const placeOrder = async (req, res) => {
         margin: parseFloat(margin),
         carry: parseFloat(carry),
         marginLimit: parseFloat(marginLimit),
-        userId
-      }
-    })
+        userId,
+      },
+    });
 
-    return res.status(201).json({ success: true, order: newOrder })
+    return res.status(201).json({ success: true, order: newOrder });
   } catch (error) {
-    console.error('Order placement error:', error)
+    console.error("Order placement error:", error);
     return res
       .status(500)
-      .json({ success: false, message: 'Internal Server Error' })
+      .json({ success: false, message: "Internal Server Error" });
   }
-}
+};
 
 export const getExecutedOrders = async (req, res) => {
   try {
     const executedOrders = await prisma.TradeOrder.findMany({
       where: {},
-      orderBy: { createdAt: 'desc' }
-    })
+      orderBy: { createdAt: "desc" },
+    });
 
-    return res.status(200).json({ success: true, orders: executedOrders })
+    return res.status(200).json({ success: true, orders: executedOrders });
   } catch (error) {
-    console.error('Error fetching executed orders:', error)
+    console.error("Error fetching executed orders:", error);
     return res
       .status(500)
-      .json({ success: false, message: 'Internal Server Error' })
+      .json({ success: false, message: "Internal Server Error" });
   }
-}
+};
 
 // Delete an Order
 export const deleteOrder = async (req, res) => {
   try {
-    const { id } = req.params
+    const { id } = req.params;
 
     // Check if order exists
     const existingOrder = await prisma.tradeOrder.findUnique({
-      where: { id }
-    })
+      where: { id },
+    });
 
     if (!existingOrder) {
       return res
         .status(404)
-        .json({ success: false, message: 'Order not found' })
+        .json({ success: false, message: "Order not found" });
     }
 
     // Delete order
     await prisma.tradeOrder.delete({
-      where: { id }
-    })
+      where: { id },
+    });
 
-    res.json({ success: true, message: 'Order deleted successfully' })
+    res.json({ success: true, message: "Order deleted successfully" });
   } catch (error) {
-    console.error('Delete Error:', error)
-    res.status(500).json({ success: false, message: 'Error deleting order' })
+    console.error("Delete Error:", error);
+    res.status(500).json({ success: false, message: "Error deleting order" });
   }
-}
+};
 
 export const loginBrokerUser = async (req, res) => {
-  const { userId, password , username,id } = req.body;
+  const { userId, password, username, id } = req.body;
   console.log(req.body);
-  
+
   try {
     // Check for user in the database
     const user = await prisma.brokerusers.findFirst({
@@ -746,33 +751,31 @@ export const loginBrokerUser = async (req, res) => {
 
     // If user is not found, send response and exit
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     if (user.password !== password) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
-    
 
     // ✅ Send username along with other details
     return res.status(200).json({
-      message: 'Login successful',
+      message: "Login successful",
       role: user.role,
       userId: user.loginUsrid,
       username: user.username,
       id: user.id,
       ledgerBalanceClose: user.ledgerBalanceClose, // ✅ This line is fine
     });
-    
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
 
     if (!res.headersSent) {
-      return res.status(500).json({ error: 'Something went wrong' });
+      return res.status(500).json({ error: "Something went wrong" });
     }
   }
 
-  res.status(500).json({ error: 'Something went wrong' });
+  res.status(500).json({ error: "Something went wrong" });
 };
 
 export const createDeposit = async (req, res) => {
@@ -783,7 +786,7 @@ export const createDeposit = async (req, res) => {
 
     if (req.file) {
       try {
-        const result = await uploadToCLoudinary(req.file, 'deposit_proofs');
+        const result = await uploadToCLoudinary(req.file, "deposit_proofs");
         imageUrl = result.secure_url; // Now you can use the secure_url from Cloudinary
       } catch (error) {
         console.error("Cloudinary Upload Error:", error);
@@ -805,17 +808,16 @@ export const createDeposit = async (req, res) => {
     });
 
     res.status(201).json({
-      message: 'Deposit created successfully',
+      message: "Deposit created successfully",
       deposit,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Something went wrong while creating the deposit' });
+    res
+      .status(500)
+      .json({ error: "Something went wrong while creating the deposit" });
   }
 };
-
-
-
 
 export const getDeposits = async (req, res) => {
   try {
@@ -979,7 +981,7 @@ export const updateBrokerUser = async (req, res) => {
     STKOPT_limitPercentage,
     STKOPT_intraday,
     STKOPT_holding,
-    STKOPT_sellingOvernight 
+    STKOPT_sellingOvernight,
   } = req.body;
 
   try {
@@ -995,86 +997,124 @@ export const updateBrokerUser = async (req, res) => {
         profitTradeHoldMinSec,
         lossTradeHoldMinSec,
         segmentAllow: Array.isArray(segments) ? segments.join(",") : segments,
-      
+
         // MCX fields
         mcx_maxExchLots: mcx_maxExchLots ? parseInt(mcx_maxExchLots) : null,
         mcx_commissionType,
         mcx_commission: mcx_commission ? parseFloat(mcx_commission) : null,
         mcx_maxLots: mcx_maxLots ? parseInt(mcx_maxLots) : null,
         mcx_orderLots: mcx_orderLots ? parseInt(mcx_orderLots) : null,
-        mcx_limitPercentage: mcx_limitPercentage ? parseFloat(mcx_limitPercentage) : null,
+        mcx_limitPercentage: mcx_limitPercentage
+          ? parseFloat(mcx_limitPercentage)
+          : null,
         mcx_intraday: mcx_intraday ? parseInt(mcx_intraday) : null,
         mcx_holding,
-      
+
         // MCX Option Buying
         mcxOPTBUY_commissionType,
-        mcxOPTBUY_commission: mcxOPTBUY_commission ? parseFloat(mcxOPTBUY_commission) : null,
-        mcxOPTBUY_strike: mcxOPTBUY_strike ? parseFloat(mcxOPTBUY_strike) : null,
+        mcxOPTBUY_commission: mcxOPTBUY_commission
+          ? parseFloat(mcxOPTBUY_commission)
+          : null,
+        mcxOPTBUY_strike: mcxOPTBUY_strike
+          ? parseFloat(mcxOPTBUY_strike)
+          : null,
         mcxOPTBUY_allow,
-      
+
         // MCX Option Selling
         mcxOPTSELL_commissionType,
-        mcxOPTSELL_commission: mcxOPTSELL_commission ? parseFloat(mcxOPTSELL_commission) : null,
-        mcxOPTSELL_strike: mcxOPTSELL_strike ? parseFloat(mcxOPTSELL_strike) : null,
+        mcxOPTSELL_commission: mcxOPTSELL_commission
+          ? parseFloat(mcxOPTSELL_commission)
+          : null,
+        mcxOPTSELL_strike: mcxOPTSELL_strike
+          ? parseFloat(mcxOPTSELL_strike)
+          : null,
         mcxOPTSELL_allow,
-      
+
         // NSE
         nse_maxExchLots: nse_maxExchLots ? parseInt(nse_maxExchLots) : null,
-      
+
         // IDXNSE
         idxNSE_commissionType,
-        idxNSE_commission: idxNSE_commission ? parseFloat(idxNSE_commission) : null,
+        idxNSE_commission: idxNSE_commission
+          ? parseFloat(idxNSE_commission)
+          : null,
         idxNSE_maxLots: idxNSE_maxLots ? parseInt(idxNSE_maxLots) : null,
         idxNSE_orderLots: idxNSE_orderLots ? parseInt(idxNSE_orderLots) : null,
-        idxNSE_limitPercentage: idxNSE_limitPercentage ? parseFloat(idxNSE_limitPercentage) : null,
+        idxNSE_limitPercentage: idxNSE_limitPercentage
+          ? parseFloat(idxNSE_limitPercentage)
+          : null,
         idxNSE_intraday: idxNSE_intraday ? parseInt(idxNSE_intraday) : null,
         idxNSE_holding: idxNSE_holding ? parseInt(idxNSE_holding) : null,
-      
+
         // IDXOPTBUY
         idxOPTBUY_commissionType,
-        idxOPTBUY_commission: idxOPTBUY_commission ? parseFloat(idxOPTBUY_commission) : null,
-        idxOPTBUY_strike: idxOPTBUY_strike ? parseFloat(idxOPTBUY_strike) : null,
+        idxOPTBUY_commission: idxOPTBUY_commission
+          ? parseFloat(idxOPTBUY_commission)
+          : null,
+        idxOPTBUY_strike: idxOPTBUY_strike
+          ? parseFloat(idxOPTBUY_strike)
+          : null,
         idxOPTBUY_allow,
-      
+
         // IDXOPTSELL
         idxOPTSELL_commissionType,
-        idxOPTSELL_commission: idxOPTSELL_commission ? parseFloat(idxOPTSELL_commission) : null,
-        idxOPTSELL_strike: idxOPTSELL_strike ? parseFloat(idxOPTSELL_strike) : null,
+        idxOPTSELL_commission: idxOPTSELL_commission
+          ? parseFloat(idxOPTSELL_commission)
+          : null,
+        idxOPTSELL_strike: idxOPTSELL_strike
+          ? parseFloat(idxOPTSELL_strike)
+          : null,
         idxOPTSELL_allow,
-      
+
         // IDXOPT
         idxOPT_maxLots: idxOPT_maxLots ? parseInt(idxOPT_maxLots) : null,
         idxOPT_orderLots: idxOPT_orderLots ? parseInt(idxOPT_orderLots) : null,
-        idxOPT_expiryLossHold: idxOPT_expiryLossHold ? parseInt(idxOPT_expiryLossHold) : null,
-        idxOPT_expiryProfitHold: idxOPT_expiryProfitHold ? parseInt(idxOPT_expiryProfitHold) : null,
-        idxOPT_expiryIntradayMargin: idxOPT_expiryIntradayMargin ? parseFloat(idxOPT_expiryIntradayMargin) : null,
-        idxOPT_limitPercentage: idxOPT_limitPercentage ? parseFloat(idxOPT_limitPercentage) : null,
+        idxOPT_expiryLossHold: idxOPT_expiryLossHold
+          ? parseInt(idxOPT_expiryLossHold)
+          : null,
+        idxOPT_expiryProfitHold: idxOPT_expiryProfitHold
+          ? parseInt(idxOPT_expiryProfitHold)
+          : null,
+        idxOPT_expiryIntradayMargin: idxOPT_expiryIntradayMargin
+          ? parseFloat(idxOPT_expiryIntradayMargin)
+          : null,
+        idxOPT_limitPercentage: idxOPT_limitPercentage
+          ? parseFloat(idxOPT_limitPercentage)
+          : null,
         idxOPT_intraday: idxOPT_intraday ? parseInt(idxOPT_intraday) : null,
-        idxOPT_holding : idxOPT_holding ? parseInt(idxOPT_holding) : null,
+        idxOPT_holding: idxOPT_holding ? parseInt(idxOPT_holding) : null,
         idxOPT_sellingOvernight,
-      
+
         // STKOPTBUY
         stkOPTBUY_commissionType,
-        stkOPTBUY_commission: stkOPTBUY_commission ? parseFloat(stkOPTBUY_commission) : null,
-        stkOPTBUY_strike: stkOPTBUY_strike ? parseFloat(stkOPTBUY_strike) : null,
+        stkOPTBUY_commission: stkOPTBUY_commission
+          ? parseFloat(stkOPTBUY_commission)
+          : null,
+        stkOPTBUY_strike: stkOPTBUY_strike
+          ? parseFloat(stkOPTBUY_strike)
+          : null,
         stkOPTBUY_allow,
-      
+
         // ✅ STKOPTSELL
         STKOPTSELL_commissionType,
-        STKOPTSELL_commission: STKOPTSELL_commission ? parseFloat(STKOPTSELL_commission) : null,
-        STKOPTSELL_strike: STKOPTSELL_strike ? parseFloat(STKOPTSELL_strike) : null,
+        STKOPTSELL_commission: STKOPTSELL_commission
+          ? parseFloat(STKOPTSELL_commission)
+          : null,
+        STKOPTSELL_strike: STKOPTSELL_strike
+          ? parseFloat(STKOPTSELL_strike)
+          : null,
         STKOPTSELL_allow,
-      
+
         // ✅ STKOPT
         STKOPT_maxLots: STKOPT_maxLots ? parseInt(STKOPT_maxLots) : null,
         STKOPT_orderLots: STKOPT_orderLots ? parseInt(STKOPT_orderLots) : null,
-        STKOPT_limitPercentage: STKOPT_limitPercentage ? parseFloat(STKOPT_limitPercentage) : null,
+        STKOPT_limitPercentage: STKOPT_limitPercentage
+          ? parseFloat(STKOPT_limitPercentage)
+          : null,
         STKOPT_intraday: STKOPT_intraday ? parseInt(STKOPT_intraday) : null,
         STKOPT_holding: STKOPT_holding ? parseInt(STKOPT_holding) : null,
         STKOPT_sellingOvernight,
-      }
-      
-      
+      },
     });
 
     res.status(200).json({
@@ -1095,9 +1135,10 @@ export const updateBrokerUserFunds = async (req, res) => {
     const numericMargin = Math.floor(parseFloat(margin)); // or Math.round() if you prefer
     // or Math.round() if you prefer
 
-
     if (isNaN(numericMargin) || numericMargin <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid margin value' });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid margin value" });
     }
 
     // Fetch existing user
@@ -1106,12 +1147,16 @@ export const updateBrokerUserFunds = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     // Check if ledgerBalanceClose is sufficient
     if (user.ledgerBalanceClose < numericMargin) {
-      return res.status(400).json({ success: false, message: 'Insufficient ledger balance' });
+      return res
+        .status(400)
+        .json({ success: false, message: "Insufficient ledger balance" });
     }
 
     // Update ledgerBalanceClose and margin_used
@@ -1129,15 +1174,15 @@ export const updateBrokerUserFunds = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Funds updated successfully',
+      message: "Funds updated successfully",
       data: {
         ledgerBalanceClose: updatedUser.ledgerBalanceClose,
         margin_used: updatedUser.margin_used,
       },
     });
   } catch (error) {
-    console.error('Update Error:', error);
-    res.status(500).json({ success: false, message: 'Error updating funds' });
+    console.error("Update Error:", error);
+    res.status(500).json({ success: false, message: "Error updating funds" });
   }
 };
 
@@ -1148,18 +1193,26 @@ export const updateDepositStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!["Accepted", "Rejected"].includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid status" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid status" });
     }
 
     const updatedDeposit = await prisma.deposit.update({
-      where: { id : parseInt(id) },
+      where: { id: parseInt(id) },
       data: { status },
     });
 
-    res.json({ success: true, message: "Deposit status updated", data: updatedDeposit });
+    res.json({
+      success: true,
+      message: "Deposit status updated",
+      data: updatedDeposit,
+    });
   } catch (error) {
     console.error("Update Deposit Error:", error);
-    res.status(500).json({ success: false, message: "Error updating deposit status" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error updating deposit status" });
   }
 };
 
@@ -1170,7 +1223,9 @@ export const updateWithdrawStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!["Accepted", "Rejected"].includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid status" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid status" });
     }
 
     const updatedWithdraw = await prisma.withdraw.update({
@@ -1178,18 +1233,22 @@ export const updateWithdrawStatus = async (req, res) => {
       data: { status },
     });
 
-    res.json({ success: true, message: "Withdraw status updated", data: updatedWithdraw });
+    res.json({
+      success: true,
+      message: "Withdraw status updated",
+      data: updatedWithdraw,
+    });
   } catch (error) {
     console.error("Update Withdraw Error:", error);
-    res.status(500).json({ success: false, message: "Error updating withdraw status" });
+    res
+      .status(500)
+      .json({ success: false, message: "Error updating withdraw status" });
   }
 };
 
-
-
 // Powermind Admin
-const adminEmail = 'powermindadmin@gmail.com';
-const adminPassword = 'Powermind@2025'; // default password
+const adminEmail = "barbhangraadmin@gmail.com";
+const adminPassword = "barbhangra@2025"; // default password
 
 export const adminLogin = (req, res) => {
   const { email, password } = req.body;
@@ -1197,16 +1256,16 @@ export const adminLogin = (req, res) => {
   if (email === adminEmail && password === adminPassword) {
     return res.status(200).json({
       success: true,
-      message: 'Login successful',
+      message: "Login successful",
       user: {
         email,
-        role: 'admin',
+        role: "admin",
       },
     });
   }
 
   return res.status(401).json({
     success: false,
-    message: 'Invalid email or password',
+    message: "Invalid email or password",
   });
 };
