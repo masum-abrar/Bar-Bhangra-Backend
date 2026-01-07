@@ -2537,3 +2537,89 @@ export const deleteMenuItem = async (req, res) => {
     return res.status(500).json(jsonResponse(false, err.message, null));
   }
 };
+
+//////////// Company Info ////////////////////////////
+export const getCompanyInfo = async (req, res) => {
+  try {
+    const company = await prisma.companyInfo.findFirst();
+
+    return res
+      .status(200)
+      .json(jsonResponse(true, "Company info fetched", company));
+  } catch (err) {
+    return res.status(500).json(jsonResponse(false, err.message, null));
+  }
+};
+
+export const addCompanyInfo = async (req, res) => {
+  try {
+    const existing = await prisma.companyInfo.findFirst();
+
+    if (existing) {
+      return res
+        .status(400)
+        .json(jsonResponse(false, "Company info already exists", null));
+    }
+
+    const company = await prisma.companyInfo.create({
+      data: req.body,
+    });
+
+    return res
+      .status(201)
+      .json(jsonResponse(true, "Company info added", company));
+  } catch (err) {
+    return res.status(500).json(jsonResponse(false, err.message, null));
+  }
+};
+
+export const updateCompanyInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const company = await prisma.companyInfo.update({
+      where: { id },
+      data: req.body,
+    });
+
+    return res
+      .status(200)
+      .json(jsonResponse(true, "Company info updated", company));
+  } catch (err) {
+    if (err.code === "P2025") {
+      return res
+        .status(404)
+        .json(jsonResponse(false, "Company info not found", null));
+    }
+    return res.status(500).json(jsonResponse(false, err.message, null));
+  }
+};
+
+export const getEventPopupSetting = async (req, res) => {
+  try {
+    const setting = await prisma.settings.findUnique({
+      where: { key: "event_popup_enabled" },
+    });
+    res.json({ success: true, enabled: setting?.value === "true" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const updateEventPopupSetting = async (req, res) => {
+  try {
+    const { enabled } = req.body;
+
+    const setting = await prisma.settings.upsert({
+      where: { key: "event_popup_enabled" },
+      update: { value: enabled.toString() },
+      create: { key: "event_popup_enabled", value: enabled.toString() },
+    });
+
+    res.json({ success: true, enabled: setting.value === "true" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

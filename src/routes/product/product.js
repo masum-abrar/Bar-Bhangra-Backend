@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import {
+  addCompanyInfo,
   banProduct,
   createBarMessage,
   createEvent,
@@ -23,6 +24,8 @@ import {
   deleteSlide,
   getAllHistories,
   getBarMessage,
+  getCompanyInfo,
+  getEventPopupSetting,
   getEvents,
   getFeaturedProductsForCustomer,
   getMenuCategories,
@@ -39,7 +42,9 @@ import {
   getTrendingProductsForCustomer,
   increaseProductViewCount,
   sendProductEmail,
+  updateCompanyInfo,
   updateEvent,
+  updateEventPopupSetting,
   updateHistory,
   updateMenuCategory,
   updateMenuItem,
@@ -168,4 +173,15 @@ router.get("/v1/menu-items", getMenuItems);
 router.post("/v1/menu-items", upload.single("image"), createMenuItem);
 router.put("/v1/menu-items/:id", upload.single("image"), updateMenuItem);
 router.delete("/v1/menu-items/:id", deleteMenuItem);
+
+// ==================== COMPANY INFO ====================
+router.get("/v1/company-info", getCompanyInfo);
+router.post("/v1/company-info", addCompanyInfo);
+router.put("/v1/company-info/:id", updateCompanyInfo);
+
+// GET current popup setting
+router.get("/v1/settings/event-popup", getEventPopupSetting);
+
+// UPDATE popup setting
+router.put("/v1/settings/event-popup", updateEventPopupSetting);
 export default router;
